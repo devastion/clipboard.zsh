@@ -1,0 +1,18 @@
+#!/usr/bin/env zsh
+# desc: Print the clipboard contents
+
+clippaste() {
+  emulate -L zsh
+
+  local REPLY
+  if ! _clipboard_detect_backend paste; then
+    print -u2 -r -- 'clippaste: no clipboard tool found'
+    return 1
+  fi
+
+  case "${REPLY}" in
+    macos) pbpaste ;;
+    wayland) wl-paste --no-newline ;;
+    x11) xclip -selection clipboard -out ;;
+  esac
+}

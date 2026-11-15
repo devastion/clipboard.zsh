@@ -1,0 +1,22 @@
+#!/usr/bin/env zsh
+# desc: Clear the clipboard after a delay
+
+clipclear() {
+  emulate -L zsh -o pipe_fail
+  local delay="${1:-45}" sum_before
+  if (($# > 1)) || [[ "${delay}" != <-> ]]; then
+    print -u2 -r -- 'Usage: clipclear [SECONDS]'
+    return 2
+  fi
+  ((${+commands[cksum]})) || {
+    print -u2 -r -- 'clipclear: cksum not found'
+    return 127
+  }
+  sum_before="$(clippaste | cksum)" || return 1
+  (
+    sleep "${delay}"
+    local sum_after
+    sum_after="$(clippaste | cksum)" || return
+    [[ "${sum_after}" == "${sum_before}" ]] && print -rn -- '' | clipcopy
+  ) < /dev/null > /dev/null 2>&1 &|
+}

@@ -1,0 +1,24 @@
+#!/usr/bin/env zsh
+
+_clipboard_detect_backend() {
+  emulate -L zsh
+
+  local operation="${1:-copy}" mac_tool wayland_tool
+  case "${operation}" in
+    copy) mac_tool=pbcopy wayland_tool=wl-copy ;;
+    paste) mac_tool=pbpaste wayland_tool=wl-paste ;;
+    *) return 2 ;;
+  esac
+
+  REPLY=''
+  [[ -z "${SSH_CONNECTION-}${SSH_TTY-}${SSH_CLIENT-}" ]] || return 1
+
+  if ((${+commands[${mac_tool}]})); then
+    REPLY=macos
+  elif [[ -n "${WAYLAND_DISPLAY-}" ]] && ((${+commands[${wayland_tool}]})); then
+    REPLY=wayland
+  elif [[ -n "${DISPLAY-}" ]] && ((${+commands[xclip]})); then
+    REPLY=x11
+  fi
+  [[ -n "${REPLY}" ]]
+}

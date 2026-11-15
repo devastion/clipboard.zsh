@@ -1,0 +1,11 @@
+#!/usr/bin/env zsh
+# desc: Copy a file to the clipboard
+
+clipcat() {
+  emulate -L zsh
+  [[ -f "${1}" ]] || {
+    print -u2 -r -- "clipcat: not a file: ${1:-}"
+    return 1
+  }
+  clipcopy < "${1}"
+}

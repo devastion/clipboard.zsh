@@ -1,0 +1,23 @@
+#!/usr/bin/env zsh
+# desc: Copy standard input to the clipboard
+
+clipcopy() {
+  emulate -L zsh
+
+  local REPLY osc52_payload
+  _clipboard_detect_backend copy
+
+  case "${REPLY}" in
+    macos) pbcopy ;;
+    wayland) wl-copy ;;
+    x11) xclip -selection clipboard -in ;;
+    *)
+      if ! : 2> /dev/null > /dev/tty; then
+        print -u2 -r -- 'clipcopy: no clipboard tool and no terminal for OSC 52'
+        return 1
+      fi
+      osc52_payload="$(base64)" || return
+      printf '\e]52;c;%s\a' "${osc52_payload//$'\n'/}" > /dev/tty
+      ;;
+  esac
+}
