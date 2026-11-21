@@ -4,20 +4,40 @@
 clipcopy() {
   emulate -L zsh
 
-  local REPLY osc52_payload
+  local REPLY osc52_payload osc52
   _clipboard_detect_backend copy
+  if (($? == 2)); then
+    print -u2 -r -- 'clipcopy: unknown clipboard backend in zstyle :clipboard: backend'
+    return 2
+  fi
 
   case "${REPLY}" in
     macos) pbcopy ;;
     wayland) wl-copy ;;
-    x11) xclip -selection clipboard -in ;;
+    # xclip keeps stdout open while it serves the selection; detach it so
+    # callers that capture output do not hang.
+    x11) xclip -selection clipboard -in > /dev/null ;;
+    xsel) xsel --clipboard --input > /dev/null ;;
+    termux) termux-clipboard-set ;;
+    wsl) clip.exe ;;
     *)
       if ! : 2> /dev/null > /dev/tty; then
         print -u2 -r -- 'clipcopy: no clipboard tool and no terminal for OSC 52'
         return 1
       fi
+      if ((! ${+commands[base64]})); then
+        print -u2 -r -- 'clipcopy: base64 not found, cannot use OSC 52'
+        return 1
+      fi
       osc52_payload="$(base64)" || return
-      printf '\e]52;c;%s\a' "${osc52_payload//$'\n'/}" > /dev/tty
+      osc52_payload="${osc52_payload//$'\n'/}"
+      # Many terminals drop payloads past ~100 KB, so the copy may be partial.
+      ((${#osc52_payload} <= 100000)) ||
+        print -u2 -r -- 'clipcopy: large OSC 52 payload, the terminal may truncate it'
+      osc52=$'\e]52;c;'"${osc52_payload}"$'\a'
+      # tmux only forwards OSC 52 wrapped in a passthrough sequence.
+      [[ -z "${TMUX-}" ]] || osc52=$'\ePtmux;\e'"${osc52}"$'\e\\'
+      print -rn -- "${osc52}" > /dev/tty
       ;;
   esac
 }

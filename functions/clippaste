@@ -4,15 +4,34 @@
 clippaste() {
   emulate -L zsh
 
-  local REPLY
-  if ! _clipboard_detect_backend paste; then
-    print -u2 -r -- 'clippaste: no clipboard tool found'
-    return 1
-  fi
+  local REPLY out
+  _clipboard_detect_backend paste
+  case $? in
+    0) ;;
+    2)
+      print -u2 -r -- 'clippaste: unknown clipboard backend in zstyle :clipboard: backend'
+      return 2
+      ;;
+    *)
+      print -u2 -r -- 'clippaste: no clipboard tool found'
+      return 1
+      ;;
+  esac
 
   case "${REPLY}" in
     macos) pbpaste ;;
     wayland) wl-paste --no-newline ;;
     x11) xclip -selection clipboard -out ;;
+    xsel) xsel --clipboard --output ;;
+    termux) termux-clipboard-get ;;
+    # Get-Clipboard ends its output with CRLF; the other backends add nothing.
+    wsl)
+      out="$(
+        powershell.exe -NoProfile -Command Get-Clipboard | tr -d '\r'
+        print -rn x
+      )"
+      out="${out%x}"
+      print -rn -- "${out%$'\n'}"
+      ;;
   esac
 }

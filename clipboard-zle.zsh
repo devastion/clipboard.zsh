@@ -1,4 +1,6 @@
 
+zmodload zsh/zselect
+
 _clipboard_flash_yank() {
   emulate -L zsh
 
@@ -23,8 +25,8 @@ _clipboard_flash_yank() {
 
   zle -R
 
-  zmodload zsh/zselect
-  zselect -t $((${CLIPBOARD_YANK_FLASH_MS:-150} / 10))
+  # zselect counts in hundredths of a second; round up so 1-9 ms still flash.
+  zselect -t $(((${CLIPBOARD_YANK_FLASH_MS:-150} + 9) / 10))
 
   region_highlight=("$saved_highlight[@]")
   zle -R
@@ -38,7 +40,8 @@ clipboard-vi-yank() {
 
   zle ".${WIDGET}" || return
 
-  print -rn -- "${CUTBUFFER}" | clipcopy 2> /dev/null
+  # Without a clipboard, keep the yank in the editor and skip the flash.
+  print -rn -- "${CUTBUFFER}" | clipcopy 2> /dev/null || return 0
   _clipboard_last_synced="${CUTBUFFER}"
   _clipboard_cut_is_newer=0
 
@@ -96,6 +99,7 @@ clipboard-vi-put() {
     vi-change-eol \
     vi-change-whole-line \
     vi-delete \
+    vi-delete-char \
     vi-substitute \
     vi-kill-eol \
     vi-kill-line; do

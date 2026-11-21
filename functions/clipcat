@@ -1,11 +1,18 @@
 #!/usr/bin/env zsh
-# desc: Copy a file to the clipboard
+# desc: Copy files (or - for standard input) to the clipboard
 
 clipcat() {
   emulate -L zsh
-  [[ -f "${1}" ]] || {
-    print -u2 -r -- "clipcat: not a file: ${1:-}"
-    return 1
-  }
-  clipcopy < "${1}"
+  local file
+  if (($# == 0)); then
+    print -u2 -r -- 'Usage: clipcat FILE...'
+    return 2
+  fi
+  for file in "$@"; do
+    [[ "${file}" == - || -f "${file}" ]] || {
+      print -u2 -r -- "clipcat: not a file: ${file}"
+      return 1
+    }
+  done
+  cat -- "$@" | clipcopy
 }

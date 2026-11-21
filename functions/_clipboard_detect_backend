@@ -1,17 +1,39 @@
 #!/usr/bin/env zsh
 
+# Sets REPLY to the local clipboard backend for an operation (copy or paste).
+# Returns 1 with REPLY empty when there is none and OSC 52 should be used.
+# `zstyle ':clipboard:' backend NAME` forces a backend (macos, wayland, x11,
+# xsel, termux, wsl) or `osc52` to skip local tools. It also bypasses the SSH
+# check, which is how X forwarding can be used.
 _clipboard_detect_backend() {
   emulate -L zsh
 
-  local operation="${1:-copy}" mac_tool wayland_tool
+  local operation="${1:-copy}" forced
+  local mac_tool wayland_tool termux_tool wsl_tool
   case "${operation}" in
-    copy) mac_tool=pbcopy wayland_tool=wl-copy ;;
-    paste) mac_tool=pbpaste wayland_tool=wl-paste ;;
+    copy) mac_tool=pbcopy wayland_tool=wl-copy termux_tool=termux-clipboard-set wsl_tool=clip.exe ;;
+    paste) mac_tool=pbpaste wayland_tool=wl-paste termux_tool=termux-clipboard-get wsl_tool=powershell.exe ;;
     *) return 2 ;;
   esac
 
   REPLY=''
-  [[ -z "${SSH_CONNECTION-}${SSH_TTY-}${SSH_CLIENT-}" ]] || return 1
+  zstyle -s ':clipboard:' backend forced || forced=''
+
+  case "${forced}" in
+    '') [[ -z "${SSH_CONNECTION-}${SSH_TTY-}${SSH_CLIENT-}" ]] || return 1 ;;
+    osc52) return 1 ;;
+    macos) ((${+commands[${mac_tool}]})) && REPLY=macos ;;
+    wayland) ((${+commands[${wayland_tool}]})) && REPLY=wayland ;;
+    x11) ((${+commands[xclip]})) && REPLY=x11 ;;
+    xsel) ((${+commands[xsel]})) && REPLY=xsel ;;
+    termux) ((${+commands[${termux_tool}]})) && REPLY=termux ;;
+    wsl) ((${+commands[${wsl_tool}]})) && REPLY=wsl ;;
+    *) return 2 ;;
+  esac
+  if [[ -n "${forced}" ]]; then
+    [[ -n "${REPLY}" ]]
+    return
+  fi
 
   if ((${+commands[${mac_tool}]})); then
     REPLY=macos
@@ -19,6 +41,12 @@ _clipboard_detect_backend() {
     REPLY=wayland
   elif [[ -n "${DISPLAY-}" ]] && ((${+commands[xclip]})); then
     REPLY=x11
+  elif [[ -n "${DISPLAY-}" ]] && ((${+commands[xsel]})); then
+    REPLY=xsel
+  elif ((${+commands[${termux_tool}]})); then
+    REPLY=termux
+  elif ((${+commands[${wsl_tool}]})) && [[ -n "${WSL_DISTRO_NAME-}${WSL_INTEROP-}" ]]; then
+    REPLY=wsl
   fi
   [[ -n "${REPLY}" ]]
 }

@@ -1,22 +1,30 @@
 #!/usr/bin/env zsh
 # desc: Clear the clipboard after a delay
 
+# With a readable clipboard, the clear is skipped if the contents changed.
+# Over SSH (OSC 52) the clipboard cannot be read back, so it is cleared
+# unconditionally.
 clipclear() {
   emulate -L zsh -o pipe_fail
-  local delay="${1:-45}" sum_before
+  local delay="${1:-45}" sum_before='' REPLY
   if (($# > 1)) || [[ "${delay}" != <-> ]]; then
     print -u2 -r -- 'Usage: clipclear [SECONDS]'
     return 2
   fi
-  ((${+commands[cksum]})) || {
-    print -u2 -r -- 'clipclear: cksum not found'
-    return 127
-  }
-  sum_before="$(clippaste | cksum)" || return 1
+  if _clipboard_detect_backend paste; then
+    ((${+commands[cksum]})) || {
+      print -u2 -r -- 'clipclear: cksum not found'
+      return 127
+    }
+    sum_before="$(clippaste | cksum)" || return 1
+  fi
   (
     sleep "${delay}"
-    local sum_after
-    sum_after="$(clippaste | cksum)" || return
-    [[ "${sum_after}" == "${sum_before}" ]] && print -rn -- '' | clipcopy
+    if [[ -n "${sum_before}" ]]; then
+      local sum_after
+      sum_after="$(clippaste | cksum)" || return
+      [[ "${sum_after}" == "${sum_before}" ]] || return 0
+    fi
+    print -rn -- '' | clipcopy
   ) < /dev/null > /dev/null 2>&1 &|
 }
